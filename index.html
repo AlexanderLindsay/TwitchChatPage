@@ -1,0 +1,52 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+	<meta charset="UTF-8">
+	<title>Main</title>
+	<style>
+		body {
+			padding: 0;
+			margin: 0;
+		}
+	</style>
+	<script type="text/javascript" src="elm.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
+</head>
+
+<body>
+    <div id="myapp"></div>
+</body>
+
+<script type="text/javascript">
+
+// Start the Elm application.
+var app = Elm.Main.init({
+    node: document.getElementById('myapp')
+});
+
+function transformEmotes(emotes) {
+	console.log("emotes", emotes);
+	return Object.keys(emotes).map(key => {
+		const id = key;
+		const location = emotes[key][0];
+		const [startStr,endStr] = location.split("-");
+		const start = parseInt(startStr);
+		const end = parseInt(endStr);
+		return { id, start, end};
+	});
+}
+
+ComfyJS.onChat = (user, message, flags, self, extra) => {
+	console.log('flags', flags);
+	console.log('self', self);
+	console.log('extra', extra);
+	const twitchMessage = { user, text: message, emotes: transformEmotes(extra.messageEmotes)};
+	app.ports.messageReceiver.send(twitchMessage);
+}
+
+ComfyJS.Init("eidoloclast");
+
+</script>
+
+</html>
