@@ -10,6 +10,7 @@
 			margin: 0;
 		}
 	</style>
+	<script type="text/javascript" src="streamname.js"></script>
 	<script type="text/javascript" src="elm.js"></script>
 	<script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
 </head>
@@ -27,7 +28,7 @@ var app = Elm.Main.init({
 
 function transformEmotes(emotes) {
 	console.log("emotes", emotes);
-	return Object.keys(emotes).map(key => {
+	return Object.keys(emotes ?? {}).map(key => {
 		const id = key;
 		const location = emotes[key][0];
 		const [startStr,endStr] = location.split("-");
@@ -45,7 +46,7 @@ ComfyJS.onChat = (user, message, flags, self, extra) => {
 	app.ports.messageReceiver.send(twitchMessage);
 }
 
-ComfyJS.Init("eidoloclast");
+ComfyJS.Init(window.twitchchat.streamname);
 
 </script>
 

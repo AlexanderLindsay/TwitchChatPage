@@ -115,14 +115,15 @@ displayMessageText message emotes =
                 in
                     case emote of
                         Nothing -> (result, String.cons c current, Nothing)
-                        Just mote -> (text current :: emoteHtml mote.id :: result, "", Just mote.end)
+                        Just mote -> (text (String.reverse current) :: emoteHtml mote.id :: result, "", Just mote.end)
             Just endIndex ->
                 if endIndex == index then
                     (result, "", Nothing)
                 else
                     (result, "", Just endIndex)
     ) ([], "", Nothing)
-    |> (\(result, _, _) -> result)
+    |> (\(result, current, _) -> text (String.reverse current) :: result)
+    |> List.reverse
     |> div []
 
 

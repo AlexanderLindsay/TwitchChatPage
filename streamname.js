@@ -1,0 +1,1 @@
+window.twitchchat = { streamname: "eidoloclast" };
