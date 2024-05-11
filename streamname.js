@@ -1,1 +1,1 @@
-window.twitchchat = { streamname: "eidoloclast" };
+window.twitchchat = { streamname: "allmanylots" };

@@ -1,12 +1,12 @@
 port module Main exposing (Model, Msg(..), init, main, update, view)
 
 import Browser
-import Html exposing (Html, div, text, img)
-import Html.Attributes exposing (src)
+import Html exposing (Html, div, text, img, span)
+import Html.Attributes exposing (src, class)
 import Json.Decode exposing (Decoder, Error, Value, decodeValue, field, map3, list, int, string)
 import Platform.Cmd as Cmd
-
-
+import Task
+import Time
 
 -- MAIN
 
@@ -61,25 +61,34 @@ twitchMessageDecoder =
 
 
 type alias Model =
-    { messages : List TwitchMessage }
+    { messages : List TwitchMessage
+    , time : Time.Posix
+    , zone: Time.Zone
+    }
 
 
 init : () -> ( Model, Cmd Msg )
 init () =
-    ( { messages = [] }, Cmd.none )
-
-
+    ( { messages = [], time = Time.millisToPosix 0, zone = Time.utc }
+    , Cmd.batch [ Task.perform SetTime Time.now, Task.perform SetZone Time.here ]
+    )
 
 -- UPDATE
 
 
 type Msg
     = Recv (Result Error TwitchMessage)
+    | SetTime Time.Posix
+    | SetZone Time.Zone
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        SetTime now ->
+            ({ model | time = now }, Cmd.none)
+        SetZone here ->
+            ({ model | zone = here }, Cmd.none)
         Recv result ->
             case result of
                 Err err ->
@@ -129,18 +138,52 @@ displayMessageText message emotes =
 
 viewMessage : TwitchMessage -> Html Msg
 viewMessage message =
-    div []
-        [ div [] [ text message.user ]
-        , div [] [ displayMessageText message.text message.emotes ]
+    div [ class "message" ]
+        [ div [ class "username" ] [ text ("***INCOMING MESSAGE FROM " ++ String.toUpper message.user ++ "***") ]
+        , div [ class "text" ] [ displayMessageText message.text message.emotes ]
+        , div [ class "endofmessage" ] [ text "***END OF MESSAGE***" ]
         ]
 
+viewMessages : List TwitchMessage -> Html Msg
+viewMessages messages =
+    messages
+        |> List.reverse
+        |> List.map viewMessage
+        |> div [ class "messages terminal-body" ]
+
+monthToString : Time.Month -> String
+monthToString month =
+    case month of
+    Time.Jan -> "01"
+    Time.Feb -> "02"
+    Time.Mar -> "03"
+    Time.Apr -> "04"
+    Time.May -> "05"
+    Time.Jun -> "06"
+    Time.Jul -> "07"
+    Time.Aug -> "08"
+    Time.Sep -> "09"
+    Time.Oct -> "10"
+    Time.Nov -> "11"
+    Time.Dec -> "12"
+
+timeToString : Time.Zone -> Time.Posix -> String
+timeToString zone time =
+    String.padLeft 4 '0' (String.fromInt (Time.toMillis zone time))
+    ++ " " ++
+    String.padLeft 2 '0' (String.fromInt (Time.toDay zone time))
+    ++ "." ++
+    monthToString (Time.toMonth zone time)
+    ++ "." ++
+    "2337"
 
 view : Model -> Html Msg
 view model =
-    model.messages
-        |> List.reverse
-        |> List.map viewMessage
-        |> div []
+    div [ class "chat terminal"]
+        [ div [ class "terminal-header" ] [ span [] [text "UESCTerm 802.11 (remote override)"], span [] [text (timeToString model.zone model.time) ] ]
+        , viewMessages model.messages
+        , div [ class "terminal-header" ] [ span [] [ text "PgUp/PgDn/Arrows to Scroll" ], span [] [text "Return/Enter to Acknowledge" ] ]
+        ]
 
 
 
