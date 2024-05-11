@@ -1,8 +1,9 @@
 port module Main exposing (Model, Msg(..), init, main, update, view)
 
 import Browser
+import Browser.Dom
 import Html exposing (Html, div, text, img, span)
-import Html.Attributes exposing (src, class)
+import Html.Attributes exposing (src, class, id)
 import Json.Decode exposing (Decoder, Error, Value, decodeValue, field, map3, list, int, string)
 import Platform.Cmd as Cmd
 import Task
@@ -77,14 +78,27 @@ init () =
 
 
 type Msg
-    = Recv (Result Error TwitchMessage)
+    = NoOp
+    | Recv (Result Error TwitchMessage)
     | SetTime Time.Posix
     | SetZone Time.Zone
 
+jumpToBottom : String -> Cmd Msg
+jumpToBottom id =
+    Browser.Dom.getViewportOf id
+        |> Task.andThen (\info -> 
+            let
+                _ = Debug.log "height" info.scene.height
+            in
+            Browser.Dom.setViewportOf id 0 (info.scene.height + 100)
+        )
+        |> Task.attempt (\_ -> NoOp)
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        NoOp ->
+            (model, Cmd.none)
         SetTime now ->
             ({ model | time = now }, Cmd.none)
         SetZone here ->
@@ -95,7 +109,7 @@ update msg model =
                     ( { model | messages = { user = "error", text = Json.Decode.errorToString err, emotes = [] } :: model.messages }, Cmd.none )
 
                 Ok message ->
-                    ( { model | messages = message :: model.messages }, Cmd.none )
+                    ( { model | messages = message :: model.messages }, jumpToBottom "messages" )
 
 
 
@@ -147,9 +161,10 @@ viewMessage message =
 viewMessages : List TwitchMessage -> Html Msg
 viewMessages messages =
     messages
+        |> List.take 15
         |> List.reverse
         |> List.map viewMessage
-        |> div [ class "messages terminal-body" ]
+        |> div [ class "messages terminal-body", id "messages" ]
 
 monthToString : Time.Month -> String
 monthToString month =
@@ -180,9 +195,9 @@ timeToString zone time =
 view : Model -> Html Msg
 view model =
     div [ class "chat terminal"]
-        [ div [ class "terminal-header" ] [ span [] [text "UESCTerm 802.11 (remote override)"], span [] [text (timeToString model.zone model.time) ] ]
+        [ div [ class "terminal-wrapper terminal-header" ] [ span [] [text "UESCTerm 802.11 (remote override)"], span [] [text (timeToString model.zone model.time) ] ]
         , viewMessages model.messages
-        , div [ class "terminal-header" ] [ span [] [ text "PgUp/PgDn/Arrows to Scroll" ], span [] [text "Return/Enter to Acknowledge" ] ]
+        , div [ class "terminal-wrapper terminal-footer" ] [ span [] [ text "PgUp/PgDn/Arrows to Scroll" ], span [] [text "Return/Enter to Acknowledge" ] ]
         ]
 
 
