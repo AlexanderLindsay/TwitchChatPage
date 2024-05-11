@@ -10,6 +10,7 @@ html {
     margin: 0;
     padding: 0;
     border-left: 10px solid #270000;
+    border-right: 10px solid #270000;
 }
 
 body {
@@ -51,11 +52,11 @@ body {
     font-family: "Courier New", Courier, monospace;
     font-size: 12px;
     line-height: 16px;
-    padding: 2px;
+    padding: 2px 20px 2px 5px;
     position: fixed;
     display: flex;
     justify-content: space-between;
-    width: 100%
+    width: 100%;
 }
 
 .terminal-header {
