@@ -153,9 +153,8 @@ displayMessageText message emotes =
 viewMessage : TwitchMessage -> Html Msg
 viewMessage message =
     div [ class "message" ]
-        [ div [ class "username" ] [ text ("***INCOMING MESSAGE FROM " ++ String.toUpper message.user ++ "***") ]
+        [ div [ class "username" ] [ text ("***" ++ String.toUpper message.user ++ "***") ]
         , div [ class "text" ] [ displayMessageText message.text message.emotes ]
-        , div [ class "endofmessage" ] [ text "***END OF MESSAGE***" ]
         ]
 
 viewMessages : List TwitchMessage -> Html Msg
