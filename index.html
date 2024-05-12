@@ -34,11 +34,21 @@ function transformEmotes(emotes) {
 }
 
 ComfyJS.onChat = (user, message, flags, self, extra) => {
-	console.log('flags', flags);
-	console.log('self', self);
-	console.log('extra', extra);
-	const twitchMessage = { user, text: message, emotes: transformEmotes(extra.messageEmotes)};
-	app.ports.messageReceiver.send(twitchMessage);
+	console.log('chat message', {user, message, flags, self, extra});
+	const twitchMessage = { tag: "chat", id: extra.id, user, text: message, timestamp: extra.timestamp, emotes: transformEmotes(extra.messageEmotes)};
+	app.ports.twitchEvent.send(twitchMessage);
+}
+
+ComfyJS.onMessageDeleted = (id, extra) => {
+	console.log('delete message', id);
+	const deleteMessage = { tag: "delete", id: id };
+	app.ports.twitchEvent.send(deleteMessage);
+}
+
+ComfyJS.onBan = (username, extra) => {
+	console.log('ban user', username);
+	const banUser = { tag: "ban", username };
+	app.ports.twitchEvent.send(banUser);
 }
 
 ComfyJS.Init(window.twitchchat.streamname);

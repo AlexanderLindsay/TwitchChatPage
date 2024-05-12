@@ -4,7 +4,7 @@ import Browser
 import Browser.Dom
 import Html exposing (Html, div, text, img, span)
 import Html.Attributes exposing (src, class, id)
-import Json.Decode exposing (Decoder, Error, Value, decodeValue, field, map3, list, int, string)
+import Json.Decode exposing (Decoder, Error, Value, decodeValue, field, map, map3, map5, list, int, string, oneOf)
 import Platform.Cmd as Cmd
 import Task
 import Time
@@ -26,9 +26,7 @@ main =
 -- PORTS
 
 
-port messageReceiver : (Value -> msg) -> Sub msg
-
-
+port twitchEvent : (Value -> msg) -> Sub msg
 
 -- MODEL
 
@@ -46,23 +44,55 @@ twitchEmoteDecoder =
         (field "start" int)
         (field "end" int)
 
-type alias TwitchMessage =
-    { user : String
+type alias ChatMessage =
+    { id: String
+    , user : String
     , text : String
+    , timestamp : String
     , emotes: List TwitchEmote
     }
 
 
-twitchMessageDecoder : Decoder TwitchMessage
-twitchMessageDecoder =
-    map3 TwitchMessage
+chatMessageDecoder : Decoder ChatMessage
+chatMessageDecoder =
+    map5 ChatMessage
+        (field "id" string)
         (field "user" string)
         (field "text" string)
+        (field "timestamp" string)
         (field "emotes" (list twitchEmoteDecoder))
 
+type alias BanRequest =
+    { username : String }
+
+banDecoder : Decoder BanRequest
+banDecoder =
+    map BanRequest
+        (field "username" string)
+
+type alias DeleteRequest =
+    { id : String }
+
+deleteDecoder : Decoder DeleteRequest
+deleteDecoder =
+    map DeleteRequest
+        (field "id" string)
+
+type TwitchEvent
+    = DeleteRequestEvent DeleteRequest
+    | BanRequestEvent BanRequest
+    | ChatMessageEvent ChatMessage
+
+twitchEventDecoder : Decoder TwitchEvent
+twitchEventDecoder =
+    oneOf
+        [ map ChatMessageEvent chatMessageDecoder
+        , map BanRequestEvent banDecoder 
+        , map DeleteRequestEvent deleteDecoder
+        ]
 
 type alias Model =
-    { messages : List TwitchMessage
+    { messages : List ChatMessage
     , time : Time.Posix
     , zone: Time.Zone
     }
@@ -79,7 +109,7 @@ init () =
 
 type Msg
     = NoOp
-    | Recv (Result Error TwitchMessage)
+    | OnTwitchEvent (Result Error TwitchEvent)
     | SetTime Time.Posix
     | SetZone Time.Zone
 
@@ -87,9 +117,6 @@ jumpToBottom : String -> Cmd Msg
 jumpToBottom id =
     Browser.Dom.getViewportOf id
         |> Task.andThen (\info -> 
-            let
-                _ = Debug.log "height" info.scene.height
-            in
             Browser.Dom.setViewportOf id 0 (info.scene.height + 100)
         )
         |> Task.attempt (\_ -> NoOp)
@@ -103,14 +130,25 @@ update msg model =
             ({ model | time = now }, Cmd.none)
         SetZone here ->
             ({ model | zone = here }, Cmd.none)
-        Recv result ->
-            case result of
+        OnTwitchEvent decodedEvent ->
+            case decodedEvent of
                 Err err ->
-                    ( { model | messages = { user = "error", text = Json.Decode.errorToString err, emotes = [] } :: model.messages }, Cmd.none )
+                    ( model, Cmd.none )
 
-                Ok message ->
-                    ( { model | messages = message :: model.messages }, jumpToBottom "messages" )
-
+                Ok event ->
+                    case event of
+                        ChatMessageEvent message ->
+                            ( { model | messages = message :: model.messages }, jumpToBottom "messages" )
+                        BanRequestEvent banRequest -> 
+                            ( { model | messages = 
+                                model.messages
+                                |> List.filter (\m -> m.user /= banRequest.username )
+                            }, jumpToBottom "messages" )
+                        DeleteRequestEvent deleteRequest -> 
+                            ( { model | messages = 
+                                model.messages
+                                |> List.filter (\m -> m.id /= deleteRequest.id )
+                            }, jumpToBottom "messages" )
 
 
 -- VIEW
@@ -149,20 +187,34 @@ displayMessageText message emotes =
     |> List.reverse
     |> div []
 
+viewTimestamp : Time.Zone -> String -> Html Msg
+viewTimestamp zone timestamp =
+    let
+        ts = String.toInt timestamp
+            |> Maybe.withDefault 0
+        px = Time.millisToPosix ts
+        hour = 
+            Time.toHour zone px
+            |> String.fromInt
+        minute = 
+            Time.toMinute zone px
+            |> String.fromInt
+    in
+    span [ class "timestamp" ] [ text (hour ++ ":" ++ minute) ]
 
-viewMessage : TwitchMessage -> Html Msg
-viewMessage message =
+viewMessage : Time.Zone -> ChatMessage -> Html Msg
+viewMessage zone message =
     div [ class "message" ]
-        [ div [ class "username" ] [ text ("***" ++ String.toUpper message.user ++ "***") ]
+        [ div [ class "username" ] [ text ("***" ++ String.toUpper message.user ++ "***"), viewTimestamp zone message.timestamp ]
         , div [ class "text" ] [ displayMessageText message.text message.emotes ]
         ]
 
-viewMessages : List TwitchMessage -> Html Msg
-viewMessages messages =
+viewMessages : Time.Zone -> List ChatMessage -> Html Msg
+viewMessages zone messages =
     messages
         |> List.take 15
         |> List.reverse
-        |> List.map viewMessage
+        |> List.map (viewMessage zone)
         |> div [ class "messages terminal-body", id "messages" ]
 
 monthToString : Time.Month -> String
@@ -181,28 +233,28 @@ monthToString month =
     Time.Nov -> "11"
     Time.Dec -> "12"
 
-timeToString : Time.Zone -> Time.Posix -> String
-timeToString zone time =
+timeToHeaderText : Time.Zone -> Time.Posix -> String
+timeToHeaderText zone time =
     String.padLeft 4 '0' (String.fromInt (Time.toMillis zone time))
     ++ " " ++
-    String.padLeft 2 '0' (String.fromInt (Time.toDay zone time))
-    ++ "." ++
     monthToString (Time.toMonth zone time)
+    ++ "." ++
+    String.padLeft 2 '0' (String.fromInt (Time.toDay zone time))
     ++ "." ++
     "2337"
 
 view : Model -> Html Msg
 view model =
     div [ class "chat terminal"]
-        [ div [ class "terminal-wrapper terminal-header" ] [ span [] [text "UESCTerm 802.11 (remote override)"], span [] [text (timeToString model.zone model.time) ] ]
-        , viewMessages model.messages
+        [ div [ class "terminal-wrapper terminal-header" ] [ span [] [text "UESCTerm 802.11 (remote override)"], span [] [text (timeToHeaderText model.zone model.time) ] ]
+        , viewMessages model.zone model.messages
         , div [ class "terminal-wrapper terminal-footer" ] [ span [] [ text "PgUp/PgDn/Arrows to Scroll" ], span [] [text "Return/Enter to Acknowledge" ] ]
         ]
 
 
 
 -- SUBSCRIPTIONS
--- Subscribe to the `messageReceiver` port to hear about messages coming in
+-- Subscribe to the `twitchEvent` port to hear about messages coming in
 -- from JS. Check out the index.html file to see how this is hooked up to a
 -- WebSocket.
 --
@@ -210,4 +262,4 @@ view model =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    messageReceiver (Recv << decodeValue twitchMessageDecoder)
+    twitchEvent (OnTwitchEvent << decodeValue twitchEventDecoder)
