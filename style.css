@@ -25,6 +25,11 @@ body {
     margin-left: 10px;
     height: calc(100vh - 60px);
     overflow-y: auto;
+    scrollbar-width: none;
+}
+
+.messages::-webkit-scrollbar {
+    display: none;
 }
 
 .username {
